@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/location_repository.dart';
+import '../../domain/repositories/nearby_repository.dart';
 import '../../domain/repositories/profile_repository.dart';
 import '../../domain/repositories/sighting_repository.dart';
 import '../../domain/repositories/storage_repository.dart';
@@ -15,6 +16,9 @@ import '../feed/feed_page.dart';
 import '../map/bloc/map_bloc.dart';
 import '../map/bloc/map_event.dart';
 import '../map/map_page.dart';
+import '../nearby/bloc/nearby_bloc.dart';
+import '../nearby/bloc/shelter_animal_bloc.dart';
+import '../nearby/nearby_page.dart';
 import '../profile/bloc/profile_bloc.dart';
 import '../profile/bloc/profile_event.dart';
 import '../profile/profile_page.dart';
@@ -22,7 +26,7 @@ import '../upload/bloc/upload_gate_bloc.dart';
 
 /// 탭 껍데기. iOS 의 `MainTabView` 에 대응한다.
 ///
-/// iOS 는 탭이 넷(피드·지도·둘러보기·내 정보)이다. 지금은 둘러보기만 아직 안 옮겼다.
+/// iOS 와 같은 네 개 — 피드·지도·둘러보기·내 정보.
 class MainShell extends StatefulWidget {
   const MainShell({
     super.key,
@@ -31,6 +35,8 @@ class MainShell extends StatefulWidget {
     required this.sightingRepository,
     required this.storageRepository,
     required this.badgeRepository,
+    required this.nearbyPlaceRepository,
+    required this.shelterAnimalRepository,
     required this.blockRepository,
     required this.notificationSettingsRepository,
   });
@@ -40,6 +46,8 @@ class MainShell extends StatefulWidget {
   final SightingRepository sightingRepository;
   final StorageRepository storageRepository;
   final BadgeRepository badgeRepository;
+  final NearbyPlaceRepository nearbyPlaceRepository;
+  final ShelterAnimalRepository shelterAnimalRepository;
   final BlockRepository blockRepository;
   final NotificationSettingsRepository notificationSettingsRepository;
 
@@ -99,6 +107,30 @@ class _MainShellState extends State<MainShell> {
               onLoginRequired: _openLogin,
             ),
           ),
+          MultiBlocProvider(
+            providers: [
+              BlocProvider(
+                create: (_) =>
+                    NearbyBloc(locationRepository: widget.locationRepository)
+                      ..add(const NearbyStarted()),
+              ),
+              BlocProvider(
+                create: (_) =>
+                    HospitalPlaceBloc(repository: widget.nearbyPlaceRepository),
+              ),
+              BlocProvider(
+                create: (_) =>
+                    PetShopPlaceBloc(repository: widget.nearbyPlaceRepository),
+              ),
+              BlocProvider(
+                create: (_) => ShelterAnimalBloc(
+                  repository: widget.shelterAnimalRepository,
+                  locationRepository: widget.locationRepository,
+                )..add(const ShelterAnimalStarted()),
+              ),
+            ],
+            child: const NearbyPage(),
+          ),
           BlocProvider(
             create: (_) => ProfileBloc(
               authRepository: widget.authRepository,
@@ -128,6 +160,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: '지도',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.travel_explore_outlined),
+            selectedIcon: Icon(Icons.travel_explore),
+            label: '둘러보기',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

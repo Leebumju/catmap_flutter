@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'data/data_portal_shelter_animal_repository.dart';
 import 'data/geo_location_repository.dart';
+import 'data/kakao_nearby_place_repository.dart';
 import 'data/supabase_auth_repository.dart';
 import 'data/supabase_profile_repositories.dart';
 import 'data/supabase_sighting_repository.dart';
@@ -19,6 +21,9 @@ const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 /// 주소·장소 검색에 쓰는 카카오 로컬 REST 키.
 /// iOS 는 지도 검색을 MapKit 으로 하지만 안드로이드에는 그게 없어서 필요하다.
 const kakaoRestApiKey = String.fromEnvironment('KAKAO_REST_API_KEY');
+
+/// 공공데이터포털 키. 둘러보기 탭의 유기동물 조회에 쓴다.
+const dataPortalApiKey = String.fromEnvironment('DATA_PORTAL_API_KEY');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +49,10 @@ class CatMapApp extends StatelessWidget {
     final blockRepository = SupabaseBlockRepository(client);
     final notificationSettingsRepository =
         SupabaseNotificationSettingsRepository(client);
+    final nearbyPlaceRepository =
+        KakaoNearbyPlaceRepository(restApiKey: kakaoRestApiKey);
+    final shelterAnimalRepository =
+        DataPortalShelterAnimalRepository(serviceKey: dataPortalApiKey);
 
     return MaterialApp(
       title: '봤냥',
@@ -59,6 +68,8 @@ class CatMapApp extends StatelessWidget {
           sightingRepository: sightingRepository,
           storageRepository: storageRepository,
           badgeRepository: badgeRepository,
+          nearbyPlaceRepository: nearbyPlaceRepository,
+          shelterAnimalRepository: shelterAnimalRepository,
           blockRepository: blockRepository,
           notificationSettingsRepository: notificationSettingsRepository,
         ),

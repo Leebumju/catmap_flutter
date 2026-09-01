@@ -2,6 +2,7 @@
 # 실행·빌드 스크립트가 source 해서 쓴다.
 #   SUPABASE_URL / SUPABASE_ANON_KEY  — 서버
 #   KAKAO_REST_API_KEY                — 주소·장소 검색(안드로이드에는 MapKit 검색이 없다)
+#   DATA_PORTAL_API_KEY               — 공공데이터포털 유기동물 조회
 #
 # 키를 이 저장소에 복사하지 않는 것이 요점이다. 소스에도, 셸 히스토리에도 안 남는다.
 
@@ -20,6 +21,7 @@ _extract() {
 SUPABASE_URL="$(_extract supabaseURL)"
 SUPABASE_ANON_KEY="$(_extract supabaseAnonKey)"
 KAKAO_REST_API_KEY="$(_extract kakaoRESTApiKey)"
+DATA_PORTAL_API_KEY="$(_extract dataPortalApiKey)"
 
 if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
   echo "Secrets.swift 에서 supabaseURL / supabaseAnonKey 를 못 읽음" >&2
@@ -28,5 +30,9 @@ fi
 
 if [ -z "$KAKAO_REST_API_KEY" ]; then
   # 검색만 안 되고 나머지는 동작한다. 막지 않고 알리기만 한다.
-  echo "경고: kakaoRESTApiKey 를 못 읽음 — 주소 검색이 동작하지 않는다." >&2
+  echo "경고: kakaoRESTApiKey 를 못 읽음 — 주소 검색과 주변 시설이 동작하지 않는다." >&2
+fi
+
+if [ -z "$DATA_PORTAL_API_KEY" ]; then
+  echo "경고: dataPortalApiKey 를 못 읽음 — 둘러보기의 유기동물 목록이 비어 보인다." >&2
 fi

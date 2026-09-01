@@ -36,6 +36,7 @@ flutter build "${BUILD_ARGS[@]}" \
   --dart-define=SUPABASE_URL="$SUPABASE_URL" \
   --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
   --dart-define=KAKAO_REST_API_KEY="$KAKAO_REST_API_KEY" \
+  --dart-define=DATA_PORTAL_API_KEY="$DATA_PORTAL_API_KEY" \
   "$@"
 
 if [ "${BUILD_ARGS[0]}" = "appbundle" ]; then
