@@ -1,0 +1,27 @@
+.DS_Store
+.dart_tool/
+.packages
+build/
+*.iml
+.idea/
+.vscode/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Flutter/flutter_export_environment.sh
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/debug
+android/app/profile
+android/app/release
+.flutter-plugins-dependencies
+
+# 실행용 키 — 커밋 금지
+dart_defines.json
