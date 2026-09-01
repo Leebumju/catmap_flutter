@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../domain/models/app_error.dart';
+import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/sighting_repository.dart';
 import 'feed_event.dart';
 import 'feed_state.dart';

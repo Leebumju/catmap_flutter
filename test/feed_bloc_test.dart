@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:catmap_flutter/domain/models/app_error.dart';
 import 'package:catmap_flutter/domain/models/cat_type.dart';
@@ -7,6 +9,7 @@ import 'package:catmap_flutter/domain/repositories/sighting_repository.dart';
 import 'package:catmap_flutter/features/feed/bloc/feed_bloc.dart';
 import 'package:catmap_flutter/features/feed/bloc/feed_event.dart';
 import 'package:catmap_flutter/features/feed/bloc/feed_state.dart';
+import 'package:catmap_flutter/features/feed/bloc/reaction_tally.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -105,10 +108,14 @@ void main() {
       skip: 1,
       expect: () => [
         isA<FeedState>()
-            .having((s) => s.isLiked('S0'), 'S0 좋아요됨', true)
-            .having((s) => s.likeCount('S0'), 'S0 좋아요 수', 3)
-            .having((s) => s.isConfirmed('S1'), 'S1 봤어요됨', true)
-            .having((s) => s.confirmationCount('S1'), 'S1 봤어요 수', 2),
+            .having((s) => s.tally(ReactionKind.like).isActive('S0'),
+                'S0 좋아요됨', true)
+            .having(
+                (s) => s.tally(ReactionKind.like).count('S0'), 'S0 좋아요 수', 3)
+            .having((s) => s.tally(ReactionKind.confirmation).isActive('S1'),
+                'S1 봤어요됨', true)
+            .having((s) => s.tally(ReactionKind.confirmation).count('S1'),
+                'S1 봤어요 수', 2),
       ],
     );
 
@@ -197,18 +204,25 @@ void main() {
       build: build,
       seed: () => FeedState(
         sightings: [makeSighting(id: 'S0', likeCount: 2)],
-        likeCounts: const {'S0': 2},
+        reactions: const {
+          ReactionKind.like: ReactionTally(counts: {'S0': 2}),
+        },
       ),
-      act: (bloc) => bloc.add(const FeedLikeToggled('S0')),
+      act: (bloc) => bloc.add(const FeedReactionToggled(
+        kind: ReactionKind.like,
+        sightingId: 'S0',
+      )),
       expect: () => [
-        // 먼저 토글 중 플래그만 선다 — 좋아요 수는 아직 그대로다.
+        // 먼저 대기 표시만 선다 — 좋아요 수는 아직 그대로다.
         isA<FeedState>()
-            .having((s) => s.isTogglingLike, '토글 중', true)
-            .having((s) => s.likeCount('S0'), '아직 그대로', 2),
+            .having((s) => s.pendingReactions, '대기 중', {ReactionKind.like})
+            .having((s) => s.tally(ReactionKind.like).count('S0'), '아직 그대로', 2),
         isA<FeedState>()
-            .having((s) => s.isTogglingLike, '토글 중', false)
-            .having((s) => s.isLiked('S0'), '좋아요됨', true)
-            .having((s) => s.likeCount('S0'), '좋아요 수', 3),
+            .having((s) => s.pendingReactions, '대기 없음', <ReactionKind>{})
+            .having((s) => s.tally(ReactionKind.like).isActive('S0'), '좋아요됨',
+                true)
+            .having(
+                (s) => s.tally(ReactionKind.like).count('S0'), '좋아요 수', 3),
       ],
     );
 
@@ -220,23 +234,93 @@ void main() {
       build: build,
       seed: () => FeedState(
         sightings: [makeSighting(id: 'S0', likeCount: 3, isLiked: true)],
-        likedSightingIds: const {'S0'},
-        likeCounts: const {'S0': 3},
+        reactions: const {
+          ReactionKind.like:
+              ReactionTally(activeIds: {'S0'}, counts: {'S0': 3}),
+        },
       ),
-      act: (bloc) => bloc.add(const FeedLikeToggled('S0')),
+      act: (bloc) => bloc.add(const FeedReactionToggled(
+        kind: ReactionKind.like,
+        sightingId: 'S0',
+      )),
       skip: 1,
       expect: () => [
         isA<FeedState>()
-            .having((s) => s.isLiked('S0'), '좋아요 해제', false)
-            .having((s) => s.likeCount('S0'), '좋아요 수', 2),
+            .having((s) => s.tally(ReactionKind.like).isActive('S0'), '좋아요 해제',
+                false)
+            .having(
+                (s) => s.tally(ReactionKind.like).count('S0'), '좋아요 수', 2),
       ],
+    );
+
+    blocTest<FeedBloc, FeedState>(
+      '좋아요를 기다리는 중에도 저도봤어요는 눌린다 — 종류별로 따로 막는다',
+      setUp: () {
+        // 좋아요는 응답이 안 오게 두고, 저도봤어요만 바로 답한다.
+        when(() => repository.toggleLike('S0'))
+            .thenAnswer((_) => Completer<bool>().future);
+        when(() => repository.toggleConfirmation('S0'))
+            .thenAnswer((_) async => true);
+      },
+      build: build,
+      seed: () => FeedState(sightings: [makeSighting(id: 'S0')]),
+      act: (bloc) async {
+        bloc.add(const FeedReactionToggled(
+          kind: ReactionKind.like,
+          sightingId: 'S0',
+        ));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const FeedReactionToggled(
+          kind: ReactionKind.confirmation,
+          sightingId: 'S0',
+        ));
+      },
+      skip: 2,
+      expect: () => [
+        isA<FeedState>()
+            .having((s) => s.tally(ReactionKind.confirmation).isActive('S0'),
+                '저도봤어요 눌림', true)
+            // 좋아요는 아직 응답을 기다리는 중이다.
+            .having((s) => s.pendingReactions, '좋아요만 대기', {ReactionKind.like}),
+      ],
+    );
+
+    blocTest<FeedBloc, FeedState>(
+      '같은 종류를 연달아 누르면 두 번째는 버린다',
+      setUp: () {
+        when(() => repository.toggleLike('S0'))
+            .thenAnswer((_) => Completer<bool>().future);
+      },
+      build: build,
+      seed: () => FeedState(sightings: [makeSighting(id: 'S0')]),
+      act: (bloc) async {
+        bloc.add(const FeedReactionToggled(
+          kind: ReactionKind.like,
+          sightingId: 'S0',
+        ));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const FeedReactionToggled(
+          kind: ReactionKind.like,
+          sightingId: 'S0',
+        ));
+      },
+      expect: () => [
+        isA<FeedState>()
+            .having((s) => s.pendingReactions, '대기 중', {ReactionKind.like}),
+      ],
+      verify: (_) {
+        verify(() => repository.toggleLike('S0')).called(1);
+      },
     );
 
     blocTest<FeedBloc, FeedState>(
       '비로그인이면 서버를 부르지 않고 로그인 신호를 낸다',
       build: () => build(userId: null),
       seed: () => FeedState(sightings: [makeSighting(id: 'S0')]),
-      act: (bloc) => bloc.add(const FeedLikeToggled('S0')),
+      act: (bloc) => bloc.add(const FeedReactionToggled(
+        kind: ReactionKind.like,
+        sightingId: 'S0',
+      )),
       expect: () => [
         isA<FeedState>()
             .having((s) => s.signal, '신호', FeedSignal.loginRequired),
@@ -253,11 +337,14 @@ void main() {
       },
       build: build,
       seed: () => FeedState(sightings: [makeSighting(id: 'S0')]),
-      act: (bloc) => bloc.add(const FeedLikeToggled('S0')),
+      act: (bloc) => bloc.add(const FeedReactionToggled(
+        kind: ReactionKind.like,
+        sightingId: 'S0',
+      )),
       skip: 1,
       expect: () => [
         isA<FeedState>()
-            .having((s) => s.isTogglingLike, '토글 중', false)
+            .having((s) => s.pendingReactions, '대기 없음', <ReactionKind>{})
             .having((s) => s.signal, '신호 없음', isNull),
       ],
     );
@@ -279,7 +366,6 @@ void main() {
         currentIndex: 2,
       ),
       act: (bloc) => bloc.add(const FeedUserBlocked('U2')),
-      skip: 1,
       expect: () => [
         isA<FeedState>()
             .having((s) => s.sightings.map((e) => e.id).toList(), '남은 목록',
@@ -331,7 +417,6 @@ void main() {
       act: (bloc) => bloc.add(
         const FeedReported(sightingId: 'S0', reason: '스팸/광고'),
       ),
-      skip: 1,
       expect: () => [
         isA<FeedState>()
             .having((s) => s.signal, '신호', FeedSignal.reportFailed),

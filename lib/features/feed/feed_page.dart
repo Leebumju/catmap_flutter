@@ -5,6 +5,7 @@ import '../../domain/models/sighting.dart';
 import 'bloc/feed_bloc.dart';
 import 'bloc/feed_event.dart';
 import 'bloc/feed_state.dart';
+import 'bloc/reaction_tally.dart';
 
 /// 목격 피드 — 세로로 넘기면 다음 게시물, 가로로 넘기면 같은 게시물의 다음 사진.
 class FeedPage extends StatelessWidget {
@@ -22,6 +23,7 @@ class FeedPage extends StatelessWidget {
         final message = switch (signal) {
           FeedSignal.loginRequired => '로그인이 필요합니다.',
           FeedSignal.accountBanned => '이용이 제한된 계정입니다.',
+          FeedSignal.loadFailed => '목록을 불러오지 못했습니다.',
           FeedSignal.reported => '신고가 접수되었습니다. 검토 후 조치하겠습니다.',
           FeedSignal.reportFailed => '신고 처리 중 오류가 발생했습니다.',
           FeedSignal.blocked => '해당 유저가 차단되었습니다.',
@@ -176,8 +178,10 @@ class _Overlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final liked = state.isLiked(sighting.id);
-    final confirmed = state.isConfirmed(sighting.id);
+    final likes = state.tally(ReactionKind.like);
+    final confirmations = state.tally(ReactionKind.confirmation);
+    final liked = likes.isActive(sighting.id);
+    final confirmed = confirmations.isActive(sighting.id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -257,19 +261,26 @@ class _Overlay extends StatelessWidget {
             _ActionButton(
               icon: liked ? Icons.favorite : Icons.favorite_border,
               color: liked ? Colors.redAccent : Colors.white,
-              count: state.likeCount(sighting.id),
-              onPressed: () =>
-                  context.read<FeedBloc>().add(FeedLikeToggled(sighting.id)),
+              count: likes.count(sighting.id),
+              onPressed: () => context.read<FeedBloc>().add(
+                    FeedReactionToggled(
+                      kind: ReactionKind.like,
+                      sightingId: sighting.id,
+                    ),
+                  ),
             ),
             const SizedBox(width: 16),
             _ActionButton(
               icon: confirmed ? Icons.visibility : Icons.visibility_outlined,
               color: confirmed ? Colors.lightBlueAccent : Colors.white,
-              count: state.confirmationCount(sighting.id),
+              count: confirmations.count(sighting.id),
               label: '저도 봤어요',
-              onPressed: () => context
-                  .read<FeedBloc>()
-                  .add(FeedConfirmationToggled(sighting.id)),
+              onPressed: () => context.read<FeedBloc>().add(
+                    FeedReactionToggled(
+                      kind: ReactionKind.confirmation,
+                      sightingId: sighting.id,
+                    ),
+                  ),
             ),
           ],
         ),
