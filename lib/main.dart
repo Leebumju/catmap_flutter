@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/geo_location_repository.dart';
 import 'data/supabase_auth_repository.dart';
+import 'data/supabase_profile_repositories.dart';
 import 'data/supabase_sighting_repository.dart';
 import 'data/supabase_storage_repository.dart';
 import 'features/app/bloc/session_bloc.dart';
@@ -39,6 +40,10 @@ class CatMapApp extends StatelessWidget {
     final storageRepository = SupabaseStorageRepository(client);
     final locationRepository =
         GeoLocationRepository(kakaoRestApiKey: kakaoRestApiKey);
+    final badgeRepository = SupabaseBadgeRepository(client);
+    final blockRepository = SupabaseBlockRepository(client);
+    final notificationSettingsRepository =
+        SupabaseNotificationSettingsRepository(client);
 
     return MaterialApp(
       title: '봤냥',
@@ -53,6 +58,9 @@ class CatMapApp extends StatelessWidget {
           locationRepository: locationRepository,
           sightingRepository: sightingRepository,
           storageRepository: storageRepository,
+          badgeRepository: badgeRepository,
+          blockRepository: blockRepository,
+          notificationSettingsRepository: notificationSettingsRepository,
         ),
       ),
     );

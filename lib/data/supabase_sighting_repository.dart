@@ -160,6 +160,25 @@ class SupabaseSightingRepository implements SightingRepository {
   }
 
   @override
+  Future<List<Sighting>> fetchByUser(String userId) async {
+    try {
+      // 출시된 iOS 앱이 내 정보 화면에서 쓰는 것과 같은 RPC.
+      final rows = await _client.rpc<List<dynamic>>(
+        'get_sightings_by_user_v2',
+        params: {
+          'target_user_id': userId,
+          'current_user_id': _client.auth.currentUser?.id,
+        },
+      );
+      return rows
+          .map((r) => Sighting.fromRpcRow(r as Map<String, dynamic>))
+          .toList();
+    } catch (error) {
+      throw AppError.from(error);
+    }
+  }
+
+  @override
   Future<Sighting> create({
     required String userId,
     required List<String> photoUrls,

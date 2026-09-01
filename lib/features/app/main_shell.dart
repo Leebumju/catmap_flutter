@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/repositories/location_repository.dart';
+import '../../domain/repositories/profile_repository.dart';
 import '../../domain/repositories/sighting_repository.dart';
 import '../../domain/repositories/storage_repository.dart';
 import '../auth/auth_page.dart';
@@ -14,12 +15,14 @@ import '../feed/feed_page.dart';
 import '../map/bloc/map_bloc.dart';
 import '../map/bloc/map_event.dart';
 import '../map/map_page.dart';
+import '../profile/bloc/profile_bloc.dart';
+import '../profile/bloc/profile_event.dart';
+import '../profile/profile_page.dart';
 import '../upload/bloc/upload_gate_bloc.dart';
 
-/// 탭 두 개(피드 / 지도)를 담는 껍데기.
+/// 탭 껍데기. iOS 의 `MainTabView` 에 대응한다.
 ///
-/// iOS 는 탭이 넷(피드·지도·둘러보기·내 정보)이다. 이번 이식 범위가 지도·업로드까지라
-/// 옮긴 화면만 탭으로 둔다 — 빈 화면으로 이어지는 탭을 만들지 않는다.
+/// iOS 는 탭이 넷(피드·지도·둘러보기·내 정보)이다. 지금은 둘러보기만 아직 안 옮겼다.
 class MainShell extends StatefulWidget {
   const MainShell({
     super.key,
@@ -27,12 +30,18 @@ class MainShell extends StatefulWidget {
     required this.locationRepository,
     required this.sightingRepository,
     required this.storageRepository,
+    required this.badgeRepository,
+    required this.blockRepository,
+    required this.notificationSettingsRepository,
   });
 
   final AuthRepository authRepository;
   final LocationRepository locationRepository;
   final SightingRepository sightingRepository;
   final StorageRepository storageRepository;
+  final BadgeRepository badgeRepository;
+  final BlockRepository blockRepository;
+  final NotificationSettingsRepository notificationSettingsRepository;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -41,8 +50,8 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _tabIndex = 0;
 
-  void _openLogin() {
-    Navigator.of(context).push(
+  Future<void> _openLogin() {
+    return Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
         builder: (_) => BlocProvider(
@@ -90,6 +99,20 @@ class _MainShellState extends State<MainShell> {
               onLoginRequired: _openLogin,
             ),
           ),
+          BlocProvider(
+            create: (_) => ProfileBloc(
+              authRepository: widget.authRepository,
+              sightingRepository: widget.sightingRepository,
+            )..add(const ProfileStarted()),
+            child: ProfilePage(
+              authRepository: widget.authRepository,
+              badgeRepository: widget.badgeRepository,
+              blockRepository: widget.blockRepository,
+              notificationSettingsRepository: widget.notificationSettingsRepository,
+              sightingRepository: widget.sightingRepository,
+              onLoginRequired: _openLogin,
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -105,6 +128,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: '지도',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: '내 정보',
           ),
         ],
       ),

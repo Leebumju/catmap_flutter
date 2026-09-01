@@ -41,6 +41,9 @@ abstract class SightingRepository {
   /// 내가 올린 게시물 수. 업로드 개수 제한(30개) 판정에 쓴다.
   Future<int> fetchMyCount();
 
+  /// 특정 사용자가 올린 목격 기록. 내 정보 화면의 사진 격자에 쓴다.
+  Future<List<Sighting>> fetchByUser(String userId);
+
   /// 목격 기록 등록. 사진은 이미 스토리지에 올라가 있어야 한다.
   Future<Sighting> create({
     required String userId,

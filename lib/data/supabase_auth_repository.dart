@@ -61,6 +61,38 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AppUser> updateNickname(String nickname) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw AppError.authRequired;
+
+    try {
+      await _client.from('users').update({'nickname': nickname}).eq('id', userId);
+      final rows = await _client.from('users').select().eq('id', userId);
+      if (rows.isEmpty) throw AppError.unknown;
+      return AppUser.fromRow(rows.first);
+    } catch (error) {
+      if (error is AppError) rethrow;
+      throw AppError.from(error);
+    }
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    try {
+      await _client.rpc<dynamic>('delete_account');
+    } catch (error) {
+      throw AppError.from(error);
+    }
+    // 계정이 이미 지워졌으므로 서버에 로그아웃을 요청하지 않는다.
+    // 로컬 세션만 정리한다 — iOS 도 같은 이유로 scope: .local 을 쓴다.
+    try {
+      await _client.auth.signOut(scope: SignOutScope.local);
+    } catch (_) {
+      // 로컬 정리 실패는 무시한다. 탈퇴 자체는 이미 끝났다.
+    }
+  }
+
+  @override
   Stream<AuthStatus> authStateChanges() {
     return _client.auth.onAuthStateChange.asyncMap((data) async {
       switch (data.event) {

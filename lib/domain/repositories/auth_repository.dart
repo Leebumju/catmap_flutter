@@ -54,6 +54,15 @@ abstract class AuthRepository {
 
   Future<void> signOut();
 
+  /// 닉네임 변경. 서버에 저장한 뒤 갱신된 사용자를 돌려준다.
+  Future<AppUser> updateNickname(String nickname);
+
+  /// 회원탈퇴. 서버에서 계정과 데이터를 지우고 로컬 세션을 정리한다.
+  ///
+  /// 계정을 만들 수 있는 앱은 앱 안에 이 경로가 있어야 한다 —
+  /// 없으면 스토어 심사에서 막힌다.
+  Future<void> deleteAccount();
+
   /// 인증 상태 변경 스트림. 로그인 직후 서버에 프로필 행이 없으면 만들어 준다.
   Stream<AuthStatus> authStateChanges();
 }
