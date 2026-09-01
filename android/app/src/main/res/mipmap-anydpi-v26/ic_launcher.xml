@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8.0(API 26) 이상의 어댑티브 아이콘.
+     런처마다 마스크(원/사각/물방울)가 달라서, 전경은 108dp 캔버스의 가운데 72dp 안에만
+     그려야 안 잘린다. ic_launcher_foreground.png 는 원본을 2/3 로 줄여 그 안에 넣은 것이다.
+     배경은 원본 아이콘의 배경색(#EC865B)과 같은 단색이라 경계가 보이지 않는다. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

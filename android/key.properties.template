@@ -1,0 +1,12 @@
+# 업로드 키 설정. 이 파일을 android/key.properties 로 복사해서 채운다.
+# key.properties 와 .jks 는 커밋 금지 (.gitignore 에 등록돼 있다).
+#
+# 키스토어 생성 (JDK 설치 후):
+#   keytool -genkey -v -keystore ~/keys/catmap-upload.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias catmap
+#
+# 이 키를 잃어버리면 같은 앱으로 업데이트를 못 올린다. 백업 필수.
+storePassword=
+keyPassword=
+keyAlias=catmap
+storeFile=/Users/사용자명/keys/catmap-upload.jks

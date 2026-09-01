@@ -161,18 +161,87 @@ flutter test
 SECRETS_PATH=... ./run.sh   # Secrets.swift 위치가 다를 때
 ```
 
+## 안드로이드 배포
+
+안드로이드 폴더는 Flutter 가 만들어준 템플릿 그대로였다. 앱의 신분증(패키지 이름, 표시
+이름, 아이콘, 서명 키)이 전부 예제 값이라 그 상태로는 Play 에 올릴 수 없다. iOS 의
+`Projects/App/Project.swift` 에 있는 값을 그대로 가져와 맞춘 것이 아래다.
+
+| 항목 | iOS | 안드로이드에 넣은 값 |
+|------|-----|--------------------|
+| 앱 식별자 | `com.bumjun.catmap` (bundleId) | 같은 값 (`applicationId`, `namespace`) |
+| 표시 이름 | `봤냥` (CFBundleDisplayName) | `res/values/strings.xml` 의 `app_name` |
+| 화면 방향 | 세로 고정 | `android:screenOrientation="portrait"` |
+| 아이콘 | `appicon.png` 1024px | 밀도별 런처 아이콘 + 어댑티브 아이콘 |
+
+여기에 안드로이드에만 있는 두 가지를 더 했다.
+
+**인터넷 권한.** Flutter 템플릿은 `INTERNET` 권한을 개발용 매니페스트에만 넣어둔다.
+디버그로 돌릴 때는 멀쩡한데 릴리즈 빌드에서는 권한이 빠져서, 앱은 켜지지만 피드가
+영영 안 뜬다. `main/AndroidManifest.xml` 로 옮겨 넣었다.
+
+**어댑티브 아이콘.** 안드로이드 8 부터 런처가 아이콘을 제 모양(원/사각/물방울)으로
+잘라낸다. 잘려도 되는 바깥 영역이 있어서, 원본을 2/3 로 줄여 가운데 안전 영역 안에
+넣고 남는 여백은 원본 배경색(`#E57048`, 실제 픽셀에서 읽은 값)으로 채웠다.
+
+### 서명 키
+
+Play 는 업로드한 파일이 **같은 키로 서명돼 있는지**로 "이게 그 앱의 다음 버전이
+맞다"를 판단한다. 이 키를 잃어버리면 같은 앱으로 업데이트를 못 올린다. 그래서 키는
+저장소에 넣지 않고 `android/key.properties` 로 바깥에서 읽는다.
+
+```bash
+# 1) 키스토어 만들기 (JDK 설치 후. 만든 파일과 비밀번호는 반드시 백업)
+keytool -genkey -v -keystore ~/keys/catmap-upload.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias catmap
+
+# 2) 설정 파일 채우기
+cp android/key.properties.template android/key.properties
+```
+
+`key.properties` 가 없으면 릴리즈 빌드도 디버그 키로 서명된다. 기기에 넣어보는 데는
+문제가 없지만 Play 는 그 파일을 거부한다. `build_android.sh` 가 AAB 를 만들기 전에
+먼저 막는다.
+
+### 빌드
+
+```bash
+./build_android.sh          # Play Console 업로드용 AAB
+./build_android.sh apk      # 기기에 직접 넣어볼 APK
+```
+
+`run.sh` 와 같은 방식으로 Supabase 키를 `Secrets.swift` 에서 꺼내 넘긴다. 이걸 빼고
+`flutter build` 를 직접 부르면 서버 주소가 빈 문자열인 앱이 나온다.
+
+### Play Console 에 따로 필요한 것
+
+코드로 만들 수 없는 것들이다.
+
+- 스토어 아이콘 512x512 — `play-assets/icon-512.png` 로 뽑아뒀다
+- 피처 그래픽 1024x500 — 없다. 디자인이 필요하다
+- 스크린샷 최소 2장, 짧은 설명, 자세한 설명
+- 개인정보처리방침 URL — 필수다
+- 데이터 보안(Data safety) 양식 — 이 앱은 위치·사진·계정 정보를 서버로 보낸다
+- 콘텐츠 등급 설문
+
 ## 확인한 것
 
 - `flutter analyze` — No issues found
 - `flutter test` — 50개 통과
 - `flutter build ios --simulator` — 성공 (피드만 있던 시점)
 - iOS 시뮬레이터에서 실제 서버에 붙여 실행 — 피드가 뜨고 주소가 동 단위까지만 나오는 것 확인
+- **`./build_android.sh apk` — 성공.** 만들어진 APK 를 열어 확인한 값:
+  패키지 `com.bumjun.catmap`, 이름 `봤냥`, minSdk 24 / targetSdk 36, 세로 고정,
+  권한 INTERNET·위치·카메라(마이크는 빠짐), 딥링크 `catmap://login-callback`,
+  어댑티브 아이콘 적용
 
 Flutter 3.47.2 / Dart 3.13.2 기준.
 
 ## 아직 안 한 것
 
-- 안드로이드에서 실행해보지 않았다 (플랫폼 폴더는 있음)
+- **안드로이드 기기에서 실제로 실행해 보지 못했다.** 빌드는 성공하지만, 이 맥에
+  안드로이드 기기도 에뮬레이터 이미지도 없어서 카메라·위치·지도·로그인이 실기기에서
+  동작하는지는 확인하지 못했다. 이게 지금 가장 큰 미검증 구간이다
 - 옮기지 않은 화면: 둘러보기(주변 시설), 내 정보, 댓글, 칭호 모달, 광고
 - 위젯 테스트 없음 — bloc·좌표 계산 테스트만 있다
 - 애플 로그인(안드로이드) 미지원 — Supabase 대시보드에 Apple OAuth 설정이 필요하다
