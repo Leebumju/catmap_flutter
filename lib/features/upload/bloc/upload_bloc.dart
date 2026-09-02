@@ -2,6 +2,7 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/review_prompt_storage.dart';
 import '../../../domain/models/cat_type.dart';
 import '../../../domain/models/coordinate.dart';
 import '../../../domain/repositories/auth_repository.dart';
@@ -22,11 +23,13 @@ class UploadBloc extends Bloc<UploadEvent, UploadState> {
     required SightingRepository sightingRepository,
     required StorageRepository storageRepository,
     ImageProcessor imageProcessor = const ImageProcessor(),
+    ReviewPrompt reviewPrompt = const ReviewPrompt(),
   })  : _auth = authRepository,
         _location = locationRepository,
         _sightings = sightingRepository,
         _storage = storageRepository,
         _images = imageProcessor,
+        _review = reviewPrompt,
         super(const UploadState()) {
     on<UploadStarted>(_onStarted);
     on<UploadFlashToggled>((e, emit) =>
@@ -59,6 +62,7 @@ class UploadBloc extends Bloc<UploadEvent, UploadState> {
   final SightingRepository _sightings;
   final StorageRepository _storage;
   final ImageProcessor _images;
+  final ReviewPrompt _review;
 
   Future<void> _onStarted(UploadStarted event, Emitter<UploadState> emit) async {
     try {
@@ -205,6 +209,16 @@ class UploadBloc extends Bloc<UploadEvent, UploadState> {
         memo: state.memo.isEmpty ? null : state.memo,
       );
       emit(state.copyWith(isUploading: false, isCompleted: true));
+
+      // 올리기를 마친 자리에서 센다. iOS 도 여기서 세고 조건이 되면 물어본다.
+      // 이 호출이 실패해도 등록은 이미 끝났다. 실패로 보이게 하면 안 되므로
+      // 바깥 try 에 섞지 않고 따로 감싼다.
+      try {
+        await _review.trackUpload();
+        await _review.requestIfNeeded();
+      } catch (_) {
+        // 리뷰 요청은 없어도 되는 기능이다.
+      }
     } catch (_) {
       emit(state.copyWith(isUploading: false, signal: UploadSignal.uploadFailed));
     }

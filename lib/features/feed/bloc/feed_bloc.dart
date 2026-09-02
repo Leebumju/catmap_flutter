@@ -2,6 +2,7 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/review_prompt_storage.dart';
 import '../../../domain/models/app_error.dart';
 import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/sighting_repository.dart';
@@ -18,8 +19,10 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> {
   FeedBloc({
     required SightingRepository sightingRepository,
     required AuthRepository authRepository,
+    ReviewPrompt reviewPrompt = const ReviewPrompt(),
   })  : _sightings = sightingRepository,
         _auth = authRepository,
+        _review = reviewPrompt,
         super(const FeedState()) {
     on<FeedStarted>(_onStarted);
     on<FeedRefreshed>(_onRefreshed, transformer: restartable());
@@ -39,6 +42,7 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> {
 
   final SightingRepository _sightings;
   final AuthRepository _auth;
+  final ReviewPrompt _review;
 
   // MARK: 목록 불러오기
 
@@ -153,6 +157,18 @@ class FeedBloc extends Bloc<FeedEvent, FeedState> {
             kind,
             state.tally(kind).toggled(event.sightingId, isActive: isActive),
           ));
+
+      // 좋아요를 켰을 때만 센다. 껐다 켰다를 반복해서 리뷰 창이 뜨면 안 된다.
+      // iOS 도 켠 경우에만 세고 물어본다.
+      // 여기서 실패해도 좋아요는 이미 서버에 반영됐다. 실패로 처리하지 않는다.
+      if (kind == ReactionKind.like && isActive) {
+        try {
+          await _review.trackLike();
+          await _review.requestIfNeeded();
+        } catch (_) {
+          // 리뷰 요청은 없어도 되는 기능이다.
+        }
+      }
     } catch (error) {
       // 정지 계정만 알린다. 그 밖의 실패는 조용히 넘긴다 — 원본과 같다.
       emit(state.copyWith(

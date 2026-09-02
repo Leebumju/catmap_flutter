@@ -5,12 +5,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'data/data_portal_shelter_animal_repository.dart';
 import 'data/geo_location_repository.dart';
 import 'data/kakao_nearby_place_repository.dart';
+import 'data/supabase_app_config_repository.dart';
 import 'data/supabase_auth_repository.dart';
 import 'data/supabase_profile_repositories.dart';
 import 'data/supabase_sighting_repository.dart';
 import 'data/supabase_storage_repository.dart';
+import 'features/app/bloc/app_bloc.dart';
 import 'features/app/bloc/session_bloc.dart';
 import 'features/app/main_shell.dart';
+import 'features/app/onboarding_page.dart';
+import 'features/app/splash_page.dart';
 
 /// 키는 소스에 넣지 않는다. 실행·빌드할 때 넘긴다:
 ///   ./run.sh            (개발)
@@ -24,6 +28,10 @@ const kakaoRestApiKey = String.fromEnvironment('KAKAO_REST_API_KEY');
 
 /// 공공데이터포털 키. 둘러보기 탭의 유기동물 조회에 쓴다.
 const dataPortalApiKey = String.fromEnvironment('DATA_PORTAL_API_KEY');
+
+/// 지금 앱 버전. 서버가 정한 최소 버전과 견줘 강제 업데이트를 판단한다.
+/// pubspec.yaml 의 version 과 같은 값이어야 한다.
+const appVersion = '0.1.0';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,27 +61,67 @@ class CatMapApp extends StatelessWidget {
         KakaoNearbyPlaceRepository(restApiKey: kakaoRestApiKey);
     final shelterAnimalRepository =
         DataPortalShelterAnimalRepository(serviceKey: dataPortalApiKey);
+    final appConfigRepository = SupabaseAppConfigRepository(client);
 
     return MaterialApp(
       title: '봤냥',
       theme: ThemeData(colorSchemeSeed: Colors.orange, useMaterial3: true),
       // iOS 는 UIUserInterfaceStyle 을 Light 로 고정한다. 여기도 다크 테마를 두지 않아
       // 기기 설정과 무관하게 같은 화면이 나온다.
-      home: BlocProvider(
-        create: (_) => SessionBloc(authRepository: authRepository)
-          ..add(const SessionStarted()),
-        child: MainShell(
-          authRepository: authRepository,
-          locationRepository: locationRepository,
-          sightingRepository: sightingRepository,
-          storageRepository: storageRepository,
-          badgeRepository: badgeRepository,
-          nearbyPlaceRepository: nearbyPlaceRepository,
-          shelterAnimalRepository: shelterAnimalRepository,
-          blockRepository: blockRepository,
-          notificationSettingsRepository: notificationSettingsRepository,
+      home: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (_) => SessionBloc(authRepository: authRepository)
+              ..add(const SessionStarted()),
+          ),
+          BlocProvider(
+            create: (_) => AppBloc(
+              appConfigRepository: appConfigRepository,
+              currentVersion: appVersion,
+            )..add(const AppStarted()),
+          ),
+        ],
+        child: _Root(
+          shell: MainShell(
+            authRepository: authRepository,
+            locationRepository: locationRepository,
+            sightingRepository: sightingRepository,
+            storageRepository: storageRepository,
+            badgeRepository: badgeRepository,
+            nearbyPlaceRepository: nearbyPlaceRepository,
+            shelterAnimalRepository: shelterAnimalRepository,
+            blockRepository: blockRepository,
+            notificationSettingsRepository: notificationSettingsRepository,
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// 앱을 열었을 때 무엇을 먼저 보여줄지 고르는 자리.
+/// 시작 화면 → (업데이트 / 점검) → 첫 실행 안내 → 본 화면 순이다. iOS 와 같다.
+class _Root extends StatelessWidget {
+  const _Root({required this.shell});
+
+  final Widget shell;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AppBloc, AppState>(
+      builder: (context, state) {
+        return switch (state.gate) {
+          AppGate.splash => const SplashPage(),
+          AppGate.forceUpdate => const ForceUpdatePage(),
+          AppGate.maintenance =>
+            MaintenancePage(message: state.maintenanceMessage),
+          AppGate.onboarding => OnboardingPage(
+              onFinished: () =>
+                  context.read<AppBloc>().add(const AppOnboardingFinished()),
+            ),
+          AppGate.ready => shell,
+        };
+      },
     );
   }
 }
