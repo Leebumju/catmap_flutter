@@ -19,7 +19,7 @@ class SupabaseSightingRepository implements SightingRepository {
   }) async {
     try {
       final rows = await _client.rpc<List<dynamic>>(
-        'get_sightings_feed_v3',
+        'get_sightings_feed_v4',
         params: {
           'current_user_id': _client.auth.currentUser?.id,
           'cursor_created_at': cursor?.createdAt.toUtc().toIso8601String(),
@@ -129,10 +129,10 @@ class SupabaseSightingRepository implements SightingRepository {
     required double radiusMeters,
   }) async {
     try {
-      // 출시된 iOS 앱(v1.1.0)이 지도에서 쓰는 것과 같은 RPC.
+      // 지도 조회. v3 는 댓글 수까지 같이 준다.
       // 반경 필터·거리 계산은 서버가 한다 — 앱이 전체를 받아 걸러내지 않는다.
       final rows = await _client.rpc<List<dynamic>>(
-        'get_sightings_with_like_status_v2',
+        'get_sightings_with_like_status_v3',
         params: {
           'user_lat': latitude,
           'user_lon': longitude,
@@ -162,9 +162,9 @@ class SupabaseSightingRepository implements SightingRepository {
   @override
   Future<List<Sighting>> fetchByUser(String userId) async {
     try {
-      // 출시된 iOS 앱이 내 정보 화면에서 쓰는 것과 같은 RPC.
+      // 내 정보 화면의 사진 격자. v3 는 댓글 수까지 같이 준다.
       final rows = await _client.rpc<List<dynamic>>(
-        'get_sightings_by_user_v2',
+        'get_sightings_by_user_v3',
         params: {
           'target_user_id': userId,
           'current_user_id': _client.auth.currentUser?.id,

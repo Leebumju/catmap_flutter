@@ -10,9 +10,13 @@ import 'data/geo_location_repository.dart';
 import 'data/kakao_nearby_place_repository.dart';
 import 'data/supabase_app_config_repository.dart';
 import 'data/supabase_auth_repository.dart';
+import 'data/supabase_comment_repository.dart';
 import 'data/supabase_profile_repositories.dart';
 import 'data/supabase_sighting_repository.dart';
 import 'data/supabase_storage_repository.dart';
+import 'domain/repositories/auth_repository.dart';
+import 'domain/repositories/comment_repository.dart';
+import 'domain/repositories/sighting_repository.dart';
 import 'features/app/bloc/app_bloc.dart';
 import 'features/app/bloc/session_bloc.dart';
 import 'features/app/main_shell.dart';
@@ -67,13 +71,22 @@ class CatMapApp extends StatelessWidget {
     final shelterAnimalRepository =
         DataPortalShelterAnimalRepository(serviceKey: dataPortalApiKey);
     final appConfigRepository = SupabaseAppConfigRepository(client);
+    final commentRepository = SupabaseCommentRepository(client);
 
     return MaterialApp(
       title: '봤냥',
       theme: ThemeData(colorSchemeSeed: Colors.orange, useMaterial3: true),
       // iOS 는 UIUserInterfaceStyle 을 Light 로 고정한다. 여기도 다크 테마를 두지 않아
       // 기기 설정과 무관하게 같은 화면이 나온다.
-      home: MultiBlocProvider(
+      // 화면 깊은 곳(댓글 등)에서도 저장소를 꺼낼 수 있도록 위에서 한 번 내려준다.
+      // 화면이 bloc 안을 뒤져 저장소를 꺼내 쓰지 않게 하려는 것이다.
+      home: MultiRepositoryProvider(
+        providers: [
+          RepositoryProvider<CommentRepository>.value(value: commentRepository),
+          RepositoryProvider<AuthRepository>.value(value: authRepository),
+          RepositoryProvider<SightingRepository>.value(value: sightingRepository),
+        ],
+        child: MultiBlocProvider(
         providers: [
           BlocProvider(
             create: (_) => SessionBloc(authRepository: authRepository)
@@ -84,10 +97,10 @@ class CatMapApp extends StatelessWidget {
               appConfigRepository: appConfigRepository,
               currentVersion: appVersion,
             )..add(const AppStarted()),
-          ),
-        ],
-        child: _Root(
-          shell: MainShell(
+            ),
+          ],
+          child: _Root(
+            shell: MainShell(
             authRepository: authRepository,
             locationRepository: locationRepository,
             sightingRepository: sightingRepository,
@@ -96,7 +109,8 @@ class CatMapApp extends StatelessWidget {
             nearbyPlaceRepository: nearbyPlaceRepository,
             shelterAnimalRepository: shelterAnimalRepository,
             blockRepository: blockRepository,
-            notificationSettingsRepository: notificationSettingsRepository,
+              notificationSettingsRepository: notificationSettingsRepository,
+            ),
           ),
         ),
       ),

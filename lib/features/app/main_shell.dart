@@ -82,7 +82,7 @@ class _MainShellState extends State<MainShell> {
               sightingRepository: widget.sightingRepository,
               authRepository: widget.authRepository,
             )..add(const FeedStarted()),
-            child: const FeedPage(),
+            child: FeedPage(onLoginRequired: _openLogin),
           ),
           MultiBlocProvider(
             providers: [

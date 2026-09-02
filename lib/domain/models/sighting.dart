@@ -25,6 +25,7 @@ class Sighting extends Equatable {
     this.isLiked = false,
     this.confirmationCount = 0,
     this.isConfirmed = false,
+    this.commentCount = 0,
   });
 
   final String id;
@@ -46,6 +47,9 @@ class Sighting extends Equatable {
   final bool isLiked;
   final int confirmationCount;
   final bool isConfirmed;
+
+  /// 댓글 수. 답글까지 합친 값을 서버가 세어 준다.
+  final int commentCount;
 
   /// 표시용 주소 — 동/읍/면/리/가 단위까지만 노출한다.
   /// 목격 위치가 그대로 드러나면 안 되기 때문에 뒤쪽 번지를 자른다.
@@ -102,6 +106,8 @@ class Sighting extends Equatable {
       isLiked: row['is_liked'] as bool? ?? false,
       confirmationCount: (row['confirmation_count'] as num?)?.toInt() ?? 0,
       isConfirmed: row['is_confirmed'] as bool? ?? false,
+      // comment_count 는 bigint 라 num 으로 받는다. 예전 RPC 에는 없어서 기본값 0.
+      commentCount: (row['comment_count'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -126,5 +132,6 @@ class Sighting extends Equatable {
         isLiked,
         confirmationCount,
         isConfirmed,
+        commentCount,
       ];
 }

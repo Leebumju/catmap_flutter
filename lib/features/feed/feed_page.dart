@@ -3,6 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/models/sighting.dart';
 import '../ad/feed_ad_layout.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../../domain/repositories/comment_repository.dart';
+import '../../domain/repositories/sighting_repository.dart';
+import '../comments/bloc/comments_bloc.dart';
+import '../comments/comments_page.dart';
 import '../ad/native_ad_slot.dart';
 import 'bloc/feed_bloc.dart';
 import 'bloc/feed_event.dart';
@@ -11,7 +16,16 @@ import 'bloc/reaction_tally.dart';
 
 /// 목격 피드 — 세로로 넘기면 다음 게시물, 가로로 넘기면 같은 게시물의 다음 사진.
 class FeedPage extends StatelessWidget {
-  const FeedPage({super.key});
+  const FeedPage({super.key, required this.onLoginRequired});
+
+  /// 로그인 화면을 띄운다. 띄우는 건 앱 껍데기의 일이라 콜백으로 받는다.
+  final VoidCallback onLoginRequired;
+
+  /// 화면 깊은 곳(_Overlay)에서도 같은 콜백을 쓰기 위한 통로.
+  static VoidCallback onLoginRequiredOf(BuildContext context) {
+    final page = context.findAncestorWidgetOfExactType<FeedPage>();
+    return page?.onLoginRequired ?? () {};
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +36,13 @@ class FeedPage extends StatelessWidget {
       listener: (context, state) {
         final signal = state.signal;
         if (signal == null) return;
+
+        if (signal == FeedSignal.loginRequired) {
+          context.read<FeedBloc>().add(const FeedSignalConsumed());
+          onLoginRequired();
+          return;
+        }
+
         final message = switch (signal) {
           FeedSignal.loginRequired => '로그인이 필요합니다.',
           FeedSignal.accountBanned => '이용이 제한된 계정입니다.',
@@ -299,9 +320,39 @@ class _Overlay extends StatelessWidget {
                     ),
                   ),
             ),
+            const SizedBox(width: 16),
+            _ActionButton(
+              icon: Icons.mode_comment_outlined,
+              color: Colors.white,
+              count: sighting.commentCount,
+              onPressed: () => _openComments(context),
+            ),
           ],
         ),
       ],
+    );
+  }
+
+  /// 댓글 화면을 연다. 댓글은 게시물마다 별개라 화면마다 bloc 을 새로 만든다.
+  void _openComments(BuildContext context) {
+    // 저장소는 앱 위쪽에서 내려온 것을 쓴다.
+    final commentRepository = context.read<CommentRepository>();
+    final authRepository = context.read<AuthRepository>();
+    final sightingRepository = context.read<SightingRepository>();
+    final onLoginRequired = FeedPage.onLoginRequiredOf(context);
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider(
+          create: (_) => CommentsBloc(
+            commentRepository: commentRepository,
+            authRepository: authRepository,
+            sightingRepository: sightingRepository,
+            sightingId: sighting.id,
+          )..add(const CommentsStarted()),
+          child: CommentsPage(onLoginRequired: onLoginRequired),
+        ),
+      ),
     );
   }
 
