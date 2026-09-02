@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/models/sighting.dart';
+import '../ad/feed_ad_layout.dart';
+import '../ad/native_ad_slot.dart';
 import 'bloc/feed_bloc.dart';
 import 'bloc/feed_event.dart';
 import 'bloc/feed_state.dart';
@@ -87,21 +89,36 @@ class _FeedPagerState extends State<_FeedPager> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
+    // 목격 기록 7개마다 광고 한 장이 끼어든다. 화면에 넘기는 장 번호와
+    // 목격 기록 번호가 달라지므로 계산을 따로 둔다.
+    final layout = FeedAdLayout(sightingCount: state.sightings.length);
+
     return PageView.builder(
       controller: _controller,
       scrollDirection: Axis.vertical,
-      itemCount: state.sightings.length,
-      onPageChanged: (index) {
+      itemCount: layout.pageCount,
+      onPageChanged: (page) {
         final bloc = context.read<FeedBloc>();
-        bloc.add(FeedIndexChanged(index));
+        final index = layout.sightingIndex(page);
+        // 광고 장에서는 "몇 번째 글을 보는 중" 을 바꾸지 않는다.
+        if (index != null) bloc.add(FeedIndexChanged(index));
+
         // 끝에서 세 장 남으면 다음 페이지를 당겨온다.
         // 여러 번 튀어도 bloc 쪽 droppable 이 중복 요청을 버린다.
-        if (index >= state.sightings.length - 3) {
+        if (page >= layout.pageCount - 3) {
           bloc.add(const FeedLoadMoreRequested());
         }
       },
-      itemBuilder: (context, index) =>
-          _SightingCard(sighting: state.sightings[index], state: state),
+      itemBuilder: (context, page) {
+        final index = layout.sightingIndex(page);
+        if (index == null) {
+          return const ColoredBox(
+            color: Colors.black,
+            child: Center(child: NativeAdSlot()),
+          );
+        }
+        return _SightingCard(sighting: state.sightings[index], state: state);
+      },
     );
   }
 }

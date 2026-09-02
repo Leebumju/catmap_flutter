@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart' hide AppState;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'data/data_portal_shelter_animal_repository.dart';
@@ -38,6 +41,8 @@ Future<void> main() async {
   // publishableKey / anonKey 는 SDK 안에서 같은 키로 합쳐진다(effectiveKey).
   // anonKey 는 deprecated 라 새 이름을 쓴다 — 기존 anon 키를 그대로 넘겨도 동작이 같다.
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
+  // 광고 SDK 는 실패해도 앱이 떠야 한다. 기다리지 않고 시작만 걸어둔다.
+  unawaited(MobileAds.instance.initialize());
   runApp(const CatMapApp());
 }
 

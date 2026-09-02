@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../domain/models/shelter_animal.dart';
+import '../../ad/native_ad_slot.dart';
 import '../bloc/shelter_animal_bloc.dart';
 import '../shelter_animal_detail_page.dart';
 import 'shelter_animal_card.dart';
@@ -10,6 +11,12 @@ import 'shelter_animal_card.dart';
 /// 위에 지역·종 필터, 아래에 2열 격자.
 class ShelterAnimalView extends StatelessWidget {
   const ShelterAnimalView({super.key});
+
+  /// 광고 하나가 들어가는 묶음 크기. iOS 와 같은 6장(2열 × 3줄)이다.
+  static const _groupSize = 6;
+
+  static int _groupCount(ShelterAnimalState state) =>
+      (state.animals.length + _groupSize - 1) ~/ _groupSize;
 
   @override
   Widget build(BuildContext context) {
@@ -76,28 +83,53 @@ class ShelterAnimalView extends StatelessWidget {
           }
           return false;
         },
-        child: GridView.builder(
+        // 6장(2열 × 3줄)씩 묶고, 다 찬 묶음 뒤에만 광고를 넣는다. iOS 와 같은 규칙이다.
+        child: ListView.builder(
           padding: const EdgeInsets.all(12),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 16,
-            childAspectRatio: 0.62,
-          ),
-          itemCount: state.animals.length + (state.isLoadingMore ? 2 : 0),
-          itemBuilder: (context, index) {
-            if (index >= state.animals.length) {
-              return const Center(child: CircularProgressIndicator());
+          itemCount: _groupCount(state) + (state.isLoadingMore ? 1 : 0),
+          itemBuilder: (context, groupIndex) {
+            if (groupIndex >= _groupCount(state)) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              );
             }
-            final animal = state.animals[index];
-            return ShelterAnimalCard(
-              animal: animal,
-              regionLabel: state.regionLabel,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ShelterAnimalDetailPage(animal: animal),
+
+            final start = groupIndex * _groupSize;
+            final end = (start + _groupSize).clamp(0, state.animals.length);
+            final group = state.animals.sublist(start, end);
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.62,
+                  ),
+                  itemCount: group.length,
+                  itemBuilder: (context, index) {
+                    final animal = group[index];
+                    return ShelterAnimalCard(
+                      animal: animal,
+                      regionLabel: state.regionLabel,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              ShelterAnimalDetailPage(animal: animal),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              ),
+                // 6장이 다 찬 묶음 뒤에만. 마지막 덜 찬 묶음에는 안 붙인다.
+                if (group.length == _groupSize) const NativeAdSlot(),
+              ],
             );
           },
         ),
