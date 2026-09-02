@@ -16,6 +16,7 @@ import 'bloc/map_bloc.dart';
 import 'bloc/map_event.dart';
 import 'bloc/map_state.dart';
 import 'widgets/address_search_sheet.dart';
+import 'widgets/badge_unlock_sheet.dart';
 import 'widgets/osm_map.dart';
 import 'widgets/sighting_popup.dart';
 
@@ -170,6 +171,23 @@ class _MapPageState extends State<MapPage> {
   Widget build(BuildContext context) {
     return MultiBlocListener(
       listeners: [
+        BlocListener<MapBloc, MapPageState>(
+          listenWhen: (prev, curr) =>
+              prev.unlockedBadges != curr.unlockedBadges,
+          listener: (context, state) async {
+            if (state.unlockedBadges.isEmpty) return;
+            // 팝업이 떠 있으면 그걸 먼저 닫는다. 창 두 개가 겹치면 안 된다.
+            if (state.selectedSighting != null) {
+              context.read<MapBloc>().add(const MapPopupDismissed());
+            }
+            await showBadgeUnlockSheet(
+              context: context,
+              badges: state.unlockedBadges,
+            );
+            if (!context.mounted) return;
+            context.read<MapBloc>().add(const MapBadgeModalDismissed());
+          },
+        ),
         BlocListener<MapBloc, MapPageState>(
           listenWhen: (prev, curr) =>
               prev.moveRequest != curr.moveRequest || prev.signal != curr.signal,

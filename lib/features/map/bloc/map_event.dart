@@ -67,3 +67,13 @@ final class MapUploadCompleted extends MapEvent {
 final class MapSignalConsumed extends MapEvent {
   const MapSignalConsumed();
 }
+
+/// 새로 딴 칭호가 있는지 확인한다. 세션당 한 번만 실제로 조회한다.
+final class MapBadgesChecked extends MapEvent {
+  const MapBadgesChecked();
+}
+
+/// 칭호 축하 창을 닫았다 — 마지막 확인 시각을 서버에 올린다.
+final class MapBadgeModalDismissed extends MapEvent {
+  const MapBadgeModalDismissed();
+}

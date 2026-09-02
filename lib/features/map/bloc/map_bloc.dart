@@ -4,21 +4,26 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../domain/models/coordinate.dart';
+import '../../../domain/models/earned_badge.dart';
 import '../../../domain/models/sighting.dart';
+import '../../../domain/repositories/auth_repository.dart';
 import '../../../domain/repositories/location_repository.dart';
+import '../../../domain/repositories/profile_repository.dart';
 import '../../../domain/repositories/sighting_repository.dart';
 import 'map_event.dart';
 import 'map_state.dart';
 
 /// 지도 화면. iOS 의 `MapFeature` 를 옮긴 것이다.
-///
-/// 칭호(뱃지) 달성 모달은 옮기지 않았다 — 이번 이식 범위(지도·업로드) 밖이다.
 class MapBloc extends Bloc<MapEvent, MapPageState> {
   MapBloc({
     required LocationRepository locationRepository,
     required SightingRepository sightingRepository,
+    required AuthRepository authRepository,
+    required BadgeRepository badgeRepository,
   })  : _location = locationRepository,
         _sightings = sightingRepository,
+        _auth = authRepository,
+        _badges = badgeRepository,
         super(const MapPageState()) {
     on<MapStarted>(_onStarted);
     on<MapMoved>(_onMoved);
@@ -33,16 +38,78 @@ class MapBloc extends Bloc<MapEvent, MapPageState> {
     on<MapPopupDismissed>((e, emit) =>
         emit(state.copyWith(clearSelectedSighting: true)));
     on<MapSignalConsumed>((e, emit) => emit(state.copyWith(clearSignal: true)));
+    on<MapBadgesChecked>(_onCheckBadges, transformer: droppable());
+    on<MapBadgeModalDismissed>(_onBadgeModalDismissed);
   }
 
   final LocationRepository _location;
   final SightingRepository _sightings;
+  final AuthRepository _auth;
+  final BadgeRepository _badges;
+
+  /// 칭호 확인은 앱을 켠 뒤 한 번만 한다. 화면을 오갈 때마다 서버를 치면 안 된다.
+  bool _didCheckBadges = false;
 
   /// 마지막 조회 시각. 쓰로틀 판정에 쓴다.
   DateTime? _lastFetch;
 
   /// 지도 이동 요청 일련번호.
   int _moveSequence = 0;
+
+  /// 새로 딴 칭호가 있는지 본다. iOS 의 `checkBadges` 와 같은 순서다.
+  Future<void> _onCheckBadges(
+    MapBadgesChecked event,
+    Emitter<MapPageState> emit,
+  ) async {
+    if (_didCheckBadges) return;
+    _didCheckBadges = true;
+
+    // 로그인 안 했으면 칭호가 없다.
+    if (await _auth.currentUser() == null) return;
+
+    // 숨은 칭호 자격을 서버가 판정한다. 실패해도 나머지는 계속 본다.
+    try {
+      await _badges.checkHongGilDong();
+    } catch (_) {}
+
+    DateTime? lastSeen;
+    List<EarnedBadge> earned;
+    try {
+      lastSeen = await _badges.lastSeenBadgeAt();
+      earned = await _badges.fetchMyEarnedBadges();
+    } catch (_) {
+      return;
+    }
+
+    // 마지막으로 본 시각 이후에 딴 것만 "새 칭호" 다.
+    // 한 번도 본 적 없으면(null) 가진 칭호 전부가 새 것이다 — iOS 와 같다.
+    final fresh = lastSeen == null
+        ? earned
+        : earned.where((e) => e.earnedAt.isAfter(lastSeen!)).toList();
+    if (fresh.isEmpty) return;
+
+    emit(state.copyWith(unlockedBadges: fresh));
+  }
+
+  /// 축하 창을 닫으면 가장 늦게 딴 칭호의 시각을 서버에 남긴다.
+  /// 그래야 다음에 켰을 때 같은 칭호로 또 축하하지 않는다.
+  Future<void> _onBadgeModalDismissed(
+    MapBadgeModalDismissed event,
+    Emitter<MapPageState> emit,
+  ) async {
+    final badges = state.unlockedBadges;
+    emit(state.copyWith(unlockedBadges: const []));
+    if (badges.isEmpty) return;
+
+    final latest = badges
+        .map((b) => b.earnedAt)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+    try {
+      await _badges.setLastSeenBadgeAt(latest);
+    } catch (_) {
+      // 실패하면 다음에 한 번 더 축하할 뿐이라 막지 않는다.
+    }
+  }
 
   Future<void> _onStarted(MapStarted event, Emitter<MapPageState> emit) async {
     final permission = await _location.requestPermission();

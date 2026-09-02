@@ -2,7 +2,12 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:catmap_flutter/domain/models/cat_type.dart';
 import 'package:catmap_flutter/domain/models/coordinate.dart';
 import 'package:catmap_flutter/domain/models/sighting.dart';
+import 'package:catmap_flutter/domain/models/app_user.dart';
+import 'package:catmap_flutter/domain/models/badge.dart';
+import 'package:catmap_flutter/domain/models/earned_badge.dart';
+import 'package:catmap_flutter/domain/repositories/auth_repository.dart';
 import 'package:catmap_flutter/domain/repositories/location_repository.dart';
+import 'package:catmap_flutter/domain/repositories/profile_repository.dart';
 import 'package:catmap_flutter/domain/repositories/sighting_repository.dart';
 import 'package:catmap_flutter/features/map/bloc/map_bloc.dart';
 import 'package:catmap_flutter/features/map/bloc/map_event.dart';
@@ -11,6 +16,38 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSightingRepository extends Mock implements SightingRepository {}
+
+class FakeAuthRepository extends Fake implements AuthRepository {
+  FakeAuthRepository(this.user);
+
+  AppUser? user;
+
+  @override
+  Future<AppUser?> currentUser() async => user;
+}
+
+/// 칭호 확인에 필요한 것만 가진 가짜.
+class FakeBadgeRepository extends Fake implements BadgeRepository {
+  FakeBadgeRepository({this.earned = const [], this.lastSeen});
+
+  List<EarnedBadge> earned;
+  DateTime? lastSeen;
+  DateTime? savedLastSeen;
+
+  @override
+  Future<bool> checkHongGilDong() async => false;
+
+  @override
+  Future<List<EarnedBadge>> fetchMyEarnedBadges() async => earned;
+
+  @override
+  Future<DateTime?> lastSeenBadgeAt() async => lastSeen;
+
+  @override
+  Future<void> setLastSeenBadgeAt(DateTime timestamp) async {
+    savedLastSeen = timestamp;
+  }
+}
 
 class FakeLocationRepository extends Fake implements LocationRepository {
   FakeLocationRepository({
@@ -41,10 +78,18 @@ Sighting makeSighting(String id) => Sighting(
 void main() {
   late MockSightingRepository sightings;
   late FakeLocationRepository location;
+  late FakeAuthRepository auth;
+  late FakeBadgeRepository badges;
 
   setUp(() {
     sightings = MockSightingRepository();
     location = FakeLocationRepository();
+    auth = FakeAuthRepository(AppUser(
+      id: 'U1',
+      email: 'me@example.com',
+      createdAt: DateTime.utc(2026, 1, 1),
+    ));
+    badges = FakeBadgeRepository();
     when(() => sightings.fetchNearby(
           latitude: any(named: 'latitude'),
           longitude: any(named: 'longitude'),
@@ -55,6 +100,8 @@ void main() {
   MapBloc build() => MapBloc(
         locationRepository: location,
         sightingRepository: sightings,
+        authRepository: auth,
+        badgeRepository: badges,
       );
 
   blocTest<MapBloc, MapPageState>(
@@ -181,5 +228,113 @@ void main() {
       expect(placed[1].coordinate.latitude, 37.6);
       expect(placed[1].coordinate.longitude, 127.1);
     });
+  });
+
+  group('칭호 확인', () {
+    blocTest<MapBloc, MapPageState>(
+      '마지막으로 본 시각 이후에 딴 칭호만 새 것으로 본다',
+      build: () {
+        badges
+          ..lastSeen = DateTime.utc(2026, 1, 10)
+          ..earned = [
+            EarnedBadge(
+              badge: Badge.beginnerExplorer,
+              earnedAt: DateTime.utc(2026, 1, 5),
+            ),
+            EarnedBadge(
+              badge: Badge.popularStar,
+              earnedAt: DateTime.utc(2026, 1, 15),
+            ),
+          ];
+        return build();
+      },
+      act: (bloc) => bloc.add(const MapBadgesChecked()),
+      wait: const Duration(milliseconds: 50),
+      verify: (bloc) {
+        expect(bloc.state.unlockedBadges.length, 1);
+        expect(bloc.state.unlockedBadges.first.badge, Badge.popularStar);
+      },
+    );
+
+    blocTest<MapBloc, MapPageState>(
+      '한 번도 본 적 없으면 가진 칭호 전부가 새 것이다',
+      build: () {
+        badges
+          ..lastSeen = null
+          ..earned = [
+            EarnedBadge(
+              badge: Badge.beginnerExplorer,
+              earnedAt: DateTime.utc(2026, 1, 5),
+            ),
+          ];
+        return build();
+      },
+      act: (bloc) => bloc.add(const MapBadgesChecked()),
+      wait: const Duration(milliseconds: 50),
+      verify: (bloc) => expect(bloc.state.unlockedBadges.length, 1),
+    );
+
+    blocTest<MapBloc, MapPageState>(
+      '비로그인이면 칭호를 조회하지 않는다',
+      build: () {
+        auth.user = null;
+        badges.earned = [
+          EarnedBadge(
+            badge: Badge.beginnerExplorer,
+            earnedAt: DateTime.utc(2026, 1, 5),
+          ),
+        ];
+        return build();
+      },
+      act: (bloc) => bloc.add(const MapBadgesChecked()),
+      wait: const Duration(milliseconds: 50),
+      verify: (bloc) => expect(bloc.state.unlockedBadges, isEmpty),
+    );
+
+    blocTest<MapBloc, MapPageState>(
+      '한 세션에서 두 번 확인하지 않는다',
+      build: () {
+        badges.earned = [
+          EarnedBadge(
+            badge: Badge.beginnerExplorer,
+            earnedAt: DateTime.utc(2026, 1, 5),
+          ),
+        ];
+        return build();
+      },
+      act: (bloc) async {
+        bloc.add(const MapBadgesChecked());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        bloc.add(const MapBadgeModalDismissed());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        bloc.add(const MapBadgesChecked());
+      },
+      wait: const Duration(milliseconds: 120),
+      verify: (bloc) => expect(bloc.state.unlockedBadges, isEmpty),
+    );
+
+    blocTest<MapBloc, MapPageState>(
+      '창을 닫으면 가장 늦게 딴 시각을 서버에 남긴다',
+      build: () {
+        badges.earned = [
+          EarnedBadge(
+            badge: Badge.beginnerExplorer,
+            earnedAt: DateTime.utc(2026, 1, 5),
+          ),
+          EarnedBadge(
+            badge: Badge.popularStar,
+            earnedAt: DateTime.utc(2026, 1, 20),
+          ),
+        ];
+        return build();
+      },
+      act: (bloc) async {
+        bloc.add(const MapBadgesChecked());
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        bloc.add(const MapBadgeModalDismissed());
+      },
+      wait: const Duration(milliseconds: 100),
+      verify: (_) => expect(badges.savedLastSeen, DateTime.utc(2026, 1, 20)),
+    );
   });
 }

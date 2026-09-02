@@ -90,7 +90,11 @@ class _MainShellState extends State<MainShell> {
                 create: (_) => MapBloc(
                   locationRepository: widget.locationRepository,
                   sightingRepository: widget.sightingRepository,
-                )..add(const MapStarted()),
+                  authRepository: widget.authRepository,
+                  badgeRepository: widget.badgeRepository,
+                )
+                  ..add(const MapStarted())
+                  ..add(const MapBadgesChecked()),
               ),
               BlocProvider(
                 create: (_) => UploadGateBloc(

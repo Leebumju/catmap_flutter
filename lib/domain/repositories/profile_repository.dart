@@ -1,4 +1,5 @@
 import '../models/badge.dart';
+import '../models/earned_badge.dart';
 import '../models/notification_settings.dart';
 
 /// 칭호. iOS 의 `BadgeClient` 중 프로필 편집에 필요한 것만 뚫는다.
@@ -13,6 +14,17 @@ abstract class BadgeRepository {
 
   /// 대표 칭호 해제.
   Future<void> unsetRepresentative();
+
+  /// 내가 가진 칭호를 획득 시각과 함께. "새로 딴 것" 을 가려낼 때 쓴다.
+  Future<List<EarnedBadge>> fetchMyEarnedBadges();
+
+  /// 숨은 칭호(홍길동) 자격을 서버가 판정한다. 자격이 되면 서버가 발급한다.
+  Future<bool> checkHongGilDong();
+
+  /// 칭호 알림을 마지막으로 본 시각. 이 시각 이후에 딴 것이 "새 칭호" 다.
+  Future<DateTime?> lastSeenBadgeAt();
+
+  Future<void> setLastSeenBadgeAt(DateTime timestamp);
 }
 
 /// 차단 목록. iOS 의 `BlockClient` 에 대응한다.

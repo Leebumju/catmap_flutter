@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/models/app_error.dart';
 import '../domain/models/badge.dart';
+import '../domain/models/earned_badge.dart';
 import '../domain/models/notification_settings.dart';
 import '../domain/repositories/profile_repository.dart';
 
@@ -44,6 +45,71 @@ class SupabaseBadgeRepository implements BadgeRepository {
   Future<void> unsetRepresentative() async {
     try {
       await _client.rpc<dynamic>('unset_representative_badge');
+    } catch (error) {
+      throw AppError.from(error);
+    }
+  }
+
+  @override
+  Future<List<EarnedBadge>> fetchMyEarnedBadges() async {
+    try {
+      final rows = await _client
+          .from('user_badges')
+          .select('badge_type, earned_at')
+          .order('earned_at', ascending: true);
+
+      final result = <EarnedBadge>[];
+      for (final row in rows) {
+        final badge = Badge.fromRawValue(row['badge_type'] as String?);
+        // 앱이 모르는 칭호는 건너뛴다. 서버가 새 칭호를 추가해도 안 깨진다.
+        if (badge == null) continue;
+        result.add(EarnedBadge(
+          badge: badge,
+          earnedAt: DateTime.parse(row['earned_at'] as String).toUtc(),
+        ));
+      }
+      return result;
+    } catch (error) {
+      throw AppError.from(error);
+    }
+  }
+
+  @override
+  Future<bool> checkHongGilDong() async {
+    try {
+      final result = await _client.rpc<dynamic>('check_hong_gil_dong');
+      return result as bool? ?? false;
+    } catch (error) {
+      throw AppError.from(error);
+    }
+  }
+
+  @override
+  Future<DateTime?> lastSeenBadgeAt() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) throw AppError.authRequired;
+
+    try {
+      final rows = await _client
+          .from('users')
+          .select('last_seen_badge_at')
+          .eq('id', userId)
+          .limit(1);
+      if (rows.isEmpty) return null;
+      final raw = rows.first['last_seen_badge_at'] as String?;
+      return raw == null ? null : DateTime.parse(raw).toUtc();
+    } catch (error) {
+      throw AppError.from(error);
+    }
+  }
+
+  @override
+  Future<void> setLastSeenBadgeAt(DateTime timestamp) async {
+    try {
+      await _client.rpc<dynamic>(
+        'set_last_seen_badge_at',
+        params: {'p_ts': timestamp.toUtc().toIso8601String()},
+      );
     } catch (error) {
       throw AppError.from(error);
     }

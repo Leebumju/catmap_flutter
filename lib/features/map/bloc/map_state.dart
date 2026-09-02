@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../domain/models/coordinate.dart';
+import '../../../domain/models/earned_badge.dart';
 import '../../../domain/models/sighting.dart';
 
 /// 화면이 한 번만 반응해야 하는 신호.
@@ -36,6 +37,7 @@ class MapPageState extends Equatable {
     this.searchText = '',
     this.showResearchButton = false,
     this.isLoading = false,
+    this.unlockedBadges = const [],
     this.signal,
   });
 
@@ -60,6 +62,10 @@ class MapPageState extends Equatable {
   final String searchText;
   final bool showResearchButton;
   final bool isLoading;
+
+  /// 새로 딴 칭호. 비어 있지 않으면 축하 창을 띄운다.
+  final List<EarnedBadge> unlockedBadges;
+
   final MapSignal? signal;
 
   MapPageState copyWith({
@@ -71,6 +77,7 @@ class MapPageState extends Equatable {
     String? searchText,
     bool? showResearchButton,
     bool? isLoading,
+    List<EarnedBadge>? unlockedBadges,
     MapSignal? signal,
     bool clearSelectedSighting = false,
     bool clearSignal = false,
@@ -86,6 +93,7 @@ class MapPageState extends Equatable {
       searchText: searchText ?? this.searchText,
       showResearchButton: showResearchButton ?? this.showResearchButton,
       isLoading: isLoading ?? this.isLoading,
+      unlockedBadges: unlockedBadges ?? this.unlockedBadges,
       signal: clearSignal ? null : (signal ?? this.signal),
     );
   }
@@ -100,6 +108,7 @@ class MapPageState extends Equatable {
         searchText,
         showResearchButton,
         isLoading,
+        unlockedBadges,
         signal,
       ];
 }
